@@ -10,7 +10,8 @@ function getDBConnection() {
     static $pdo = null;
     if ($pdo === null) {
         try {
-            $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
+            $port = defined('DB_PORT') ? DB_PORT : '3306';
+            $dsn = "mysql:host=" . DB_HOST . ";port=" . $port . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
             $options = [
                 PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -24,12 +25,13 @@ function getDBConnection() {
         } catch (PDOException $e) {
             // Attempt auto-creation of database if db doesn't exist yet
             try {
-                $rootDsn = "mysql:host=" . DB_HOST . ";charset=" . DB_CHARSET;
+                $port = defined('DB_PORT') ? DB_PORT : '3306';
+                $rootDsn = "mysql:host=" . DB_HOST . ";port=" . $port . ";charset=" . DB_CHARSET;
                 $tmpPdo = new PDO($rootDsn, DB_USER, DB_PASS);
                 $tmpPdo->exec("CREATE DATABASE IF NOT EXISTS `" . DB_NAME . "` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
                 
                 // Re-connect
-                $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET, DB_USER, DB_PASS, [
+                $pdo = new PDO("mysql:host=" . DB_HOST . ";port=" . $port . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET, DB_USER, DB_PASS, [
                     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                     PDO::ATTR_EMULATE_PREPARES   => false,
@@ -47,9 +49,9 @@ function getDBConnection() {
             } catch (PDOException $ex) {
                 die("<div style='font-family:sans-serif; padding:20px; background:#f8d7da; color:#721c24; border-radius:5px;'>
                     <h2>Database Connection Error</h2>
-                    <p>Unable to connect to MySQL database on XAMPP server.</p>
+                    <p>Unable to connect to MySQL database.</p>
                     <p><strong>Error:</strong> " . htmlspecialchars($ex->getMessage()) . "</p>
-                    <p><em>Please ensure Apache and MySQL are running in XAMPP Control Panel.</em></p>
+                    <p><em>Please ensure your MySQL database is active and environment variables are set.</em></p>
                 </div>");
             }
         }
@@ -61,7 +63,6 @@ function getDBConnection() {
  * Ensure default System Users & Room Capacity updates exist
  */
 function ensureDefaultUsersExist($pdo) {
-    // Issue 2: Ensure Deluxe Double room capacity is set to 4 in database
     try {
         $pdo->exec("UPDATE room_types SET capacity = 4 WHERE LOWER(type_name) = 'deluxe double'");
     } catch (Exception $ex) {}
