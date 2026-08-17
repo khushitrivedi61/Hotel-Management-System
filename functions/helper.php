@@ -62,10 +62,10 @@ function displayFlash() {
 }
 
 /**
- * Format Currency (e.g. ₹ 5,500.00)
+ * Format Currency (Clean formatting without character encoding numbers)
  */
 function formatCurrency($amount) {
-    return CURRENCY_SYMBOL . ' ' . number_format((float)$amount, 2);
+    return '₹ ' . number_format((float)$amount, 2);
 }
 
 /**
