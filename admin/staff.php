@@ -26,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             setFlash('danger', 'Email address is already registered.');
         } else {
             $hashedPass = password_hash($password, PASSWORD_DEFAULT);
+            $today = date('Y-m-d');
             try {
                 $pdo->beginTransaction();
                 
@@ -34,9 +35,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $uStmt->execute([$name, $email, $phone, $hashedPass, $role]);
                 $userId = $pdo->lastInsertId();
 
-                // Insert Staff Record
-                $sStmt = $pdo->prepare("INSERT INTO staff (user_id, employee_code, department, salary, date_of_joining) VALUES (?, ?, ?, ?, CURDATE())");
-                $sStmt->execute([$userId, $empCode, $department, $salary]);
+                // Insert Staff Record (Uses PHP date for MySQL/SQLite compatibility)
+                $sStmt = $pdo->prepare("INSERT INTO staff (user_id, employee_code, department, salary, date_of_joining) VALUES (?, ?, ?, ?, ?)");
+                $sStmt->execute([$userId, $empCode, $department, $salary, $today]);
 
                 $pdo->commit();
                 logActivity('Staff Account Created', "Created staff user {$email} with role {$role}");

@@ -54,11 +54,12 @@ function createBooking($customerId, $roomId, $checkIn, $checkOut, $numGuests, $s
         }
     }
     
-    // 4. Process Coupon Discount
+    // 4. Process Coupon Discount (Cross-database MySQL/SQLite compatible date check)
     $discountAmount = 0.00;
     if (!empty($couponCode)) {
-        $cpnStmt = $pdo->prepare("SELECT * FROM coupons WHERE code = ? AND status = 'Active' AND valid_from <= CURDATE() AND valid_to >= CURDATE() LIMIT 1");
-        $cpnStmt->execute([$couponCode]);
+        $today = date('Y-m-d');
+        $cpnStmt = $pdo->prepare("SELECT * FROM coupons WHERE code = ? AND status = 'Active' AND valid_from <= ? AND valid_to >= ? LIMIT 1");
+        $cpnStmt->execute([$couponCode, $today, $today]);
         $cpn = $cpnStmt->fetch();
         if ($cpn) {
             $discountPct = (float)$cpn['discount_percent'];

@@ -28,6 +28,7 @@ function processPaymentAndInvoice($bookingId, $paymentMethod, $transactionRef = 
     
     $paymentCode = generateCode('PAY');
     $invoiceNumber = generateCode('INV');
+    $today = date('Y-m-d');
     
     try {
         $pdo->beginTransaction();
@@ -42,14 +43,14 @@ function processPaymentAndInvoice($bookingId, $paymentMethod, $transactionRef = 
         ]);
         $paymentId = $pdo->lastInsertId();
         
-        // 2. Insert Invoice
+        // 2. Insert Invoice (Uses PHP date for cross-database MySQL/SQLite compatibility)
         $dueDate = date('Y-m-d', strtotime($booking['check_out_date']));
         $invStmt = $pdo->prepare("
             INSERT INTO invoices (invoice_number, booking_id, payment_id, issue_date, due_date, room_charges, service_charges, gst_amount, discount_amount, grand_total) 
-            VALUES (?, ?, ?, CURDATE(), ?, ?, 0.00, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, 0.00, ?, ?, ?)
         ");
         $invStmt->execute([
-            $invoiceNumber, $bookingId, $paymentId, $dueDate, $booking['subtotal'], $booking['tax_amount'], $booking['discount_amount'], $booking['grand_total']
+            $invoiceNumber, $bookingId, $paymentId, $today, $dueDate, $booking['subtotal'], $booking['tax_amount'], $booking['discount_amount'], $booking['grand_total']
         ]);
         $invoiceId = $pdo->lastInsertId();
         

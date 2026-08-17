@@ -1,26 +1,41 @@
 <?php
-$pageTitle = "Admin Dashboard - Grand Royale Hotel";
-require_once __DIR__ . '/../includes/header.php';
-require_once __DIR__ . '/../includes/navbar.php';
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../functions/helper.php';
+require_once __DIR__ . '/../functions/auth.php';
 require_once __DIR__ . '/../functions/room_functions.php';
 
 requireRole('admin');
 
-// Fetch Live Dashboard Statistics from MySQL
-$rCounts = getRoomStatusCounts();
+$pageTitle = "Executive Admin Dashboard - Grand Royale Hotel";
+require_once __DIR__ . '/../includes/header.php';
+require_once __DIR__ . '/../includes/navbar.php';
 
-// Customers Count
-$custCount = $pdo->query("SELECT COUNT(*) FROM customers")->fetchColumn();
+// Fetch Dashboard Real-time Metrics
+$roomCounts = getRoomStatusCounts();
+
+// User Count
+$totalCustomers = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'customer'")->fetchColumn();
 
 // Staff Count
 $staffCount = $pdo->query("SELECT COUNT(*) FROM staff WHERE status = 'Active'")->fetchColumn();
 
-// Today Check-ins & Check-outs
-$todayCheckIns = $pdo->query("SELECT COUNT(*) FROM bookings WHERE check_in_date = CURDATE() AND status IN ('Approved', 'Checked-In')")->fetchColumn();
-$todayCheckOuts = $pdo->query("SELECT COUNT(*) FROM bookings WHERE check_out_date = CURDATE() AND status = 'Checked-In'")->fetchColumn();
+// Today Check-ins & Check-outs (Cross-database MySQL/SQLite compatible date strings)
+$todayStr = date('Y-m-d');
+$monthStr = date('Y-m-');
+
+$stmtIn = $pdo->prepare("SELECT COUNT(*) FROM bookings WHERE check_in_date = ? AND status IN ('Approved', 'Checked-In')");
+$stmtIn->execute([$todayStr]);
+$todayCheckIns = $stmtIn->fetchColumn();
+
+$stmtOut = $pdo->prepare("SELECT COUNT(*) FROM bookings WHERE check_out_date = ? AND status = 'Checked-In'");
+$stmtOut->execute([$todayStr]);
+$todayCheckOuts = $stmtOut->fetchColumn();
 
 // Financial Stats
-$monthlyRevenue = $pdo->query("SELECT SUM(amount) FROM payments WHERE MONTH(paid_at) = MONTH(CURDATE()) AND YEAR(paid_at) = YEAR(CURDATE()) AND payment_status = 'Paid'")->fetchColumn() ?: 0;
+$stmtRev = $pdo->prepare("SELECT SUM(amount) FROM payments WHERE paid_at LIKE ? AND payment_status = 'Paid'");
+$stmtRev->execute([$monthStr . '%']);
+$monthlyRevenue = $stmtRev->fetchColumn() ?: 0;
+
 $pendingPayments = $pdo->query("SELECT SUM(grand_total) FROM bookings WHERE status = 'Pending'")->fetchColumn() ?: 0;
 
 // Fetch Recent Activity Logs
@@ -37,218 +52,168 @@ $activityLogs = $logStmt->fetchAll();
             <?php require_once __DIR__ . '/../includes/sidebar.php'; ?>
         </div>
 
-        <!-- Main Content Area -->
+        <!-- Main Dashboard Content -->
         <div class="col-lg-9">
-            <!-- Header Welcome Card -->
-            <div class="card border-0 shadow-sm rounded-4 p-4 bg-dark text-light mb-4 border-start border-warning border-5">
-                <div class="d-flex justify-content-between align-items-center">
+            <!-- Welcome Header Card -->
+            <div class="card border-0 shadow-sm rounded-4 p-4 bg-dark text-light mb-4 position-relative overflow-hidden border-start border-warning border-5">
+                <div class="d-flex justify-content-between align-items-center position-relative z-1">
                     <div>
-                        <h4 class="fw-bold mb-1 text-amber">Executive Admin Control Console</h4>
-                        <p class="text-secondary small mb-0">Real-time performance analytics, room availability matrix, and financial tracking</p>
+                        <h4 class="fw-bold mb-1 brand-font text-amber">Welcome Back, <?php echo sanitize($_SESSION['user_name']); ?>!</h4>
+                        <p class="text-secondary small mb-0">Live Resort Operational Status & Management Overview</p>
                     </div>
-                    <span class="badge bg-warning text-dark px-3 py-2 fw-bold"><i class="fas fa-signal me-1"></i> Live System Online</span>
+                    <span class="badge bg-warning text-dark fw-bold px-3 py-2 border border-light"><i class="fas fa-crown me-1"></i> Executive Portal</span>
                 </div>
             </div>
 
-            <!-- 11 Key Live Metric Cards -->
+            <!-- Top Real-Time Metrics Cards -->
             <div class="row g-3 mb-4">
-                <div class="col-xl-3 col-md-4 col-6">
+                <div class="col-md-3 col-6">
                     <div class="card border-0 shadow-sm rounded-4 p-3 bg-white stat-card">
-                        <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="bg-primary text-white rounded-circle p-3 fs-4"><i class="fas fa-bed"></i></div>
                             <div>
-                                <small class="text-secondary fw-semibold">Total Rooms</small>
-                                <h3 class="fw-bold text-dark mb-0"><?php echo $rCounts['Total']; ?></h3>
+                                <h6 class="text-muted small fw-semibold mb-0">Total Rooms</h6>
+                                <h3 class="fw-bold text-dark mb-0"><?php echo $roomCounts['Total']; ?></h3>
                             </div>
-                            <div class="p-3 bg-light text-primary rounded-circle"><i class="fas fa-door-open fs-4"></i></div>
                         </div>
                     </div>
                 </div>
-                <div class="col-xl-3 col-md-4 col-6">
-                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white stat-card border-start border-success border-4">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <small class="text-secondary fw-semibold">Available Rooms</small>
-                                <h3 class="fw-bold text-success mb-0"><?php echo $rCounts['Available']; ?></h3>
-                            </div>
-                            <div class="p-3 bg-light text-success rounded-circle"><i class="fas fa-check-circle fs-4"></i></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-xl-3 col-md-4 col-6">
-                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white stat-card border-start border-danger border-4">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <small class="text-secondary fw-semibold">Occupied Rooms</small>
-                                <h3 class="fw-bold text-danger mb-0"><?php echo $rCounts['Occupied']; ?></h3>
-                            </div>
-                            <div class="p-3 bg-light text-danger rounded-circle"><i class="fas fa-user-lock fs-4"></i></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-xl-3 col-md-4 col-6">
-                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white stat-card border-start border-warning border-4">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <small class="text-secondary fw-semibold">Reserved Rooms</small>
-                                <h3 class="fw-bold text-warning mb-0"><?php echo $rCounts['Reserved']; ?></h3>
-                            </div>
-                            <div class="p-3 bg-light text-warning rounded-circle"><i class="fas fa-clock fs-4"></i></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-xl-3 col-md-4 col-6">
+                <div class="col-md-3 col-6">
                     <div class="card border-0 shadow-sm rounded-4 p-3 bg-white stat-card">
-                        <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="bg-success text-white rounded-circle p-3 fs-4"><i class="fas fa-check-circle"></i></div>
                             <div>
-                                <small class="text-secondary fw-semibold">Under Maintenance</small>
-                                <h3 class="fw-bold text-secondary mb-0"><?php echo $rCounts['Maintenance']; ?></h3>
+                                <h6 class="text-muted small fw-semibold mb-0">Available</h6>
+                                <h3 class="fw-bold text-success mb-0"><?php echo $roomCounts['Available']; ?></h3>
                             </div>
-                            <div class="p-3 bg-light text-secondary rounded-circle"><i class="fas fa-tools fs-4"></i></div>
                         </div>
                     </div>
                 </div>
-                <div class="col-xl-3 col-md-4 col-6">
+                <div class="col-md-3 col-6">
                     <div class="card border-0 shadow-sm rounded-4 p-3 bg-white stat-card">
-                        <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="bg-danger text-white rounded-circle p-3 fs-4"><i class="fas fa-user-lock"></i></div>
                             <div>
-                                <small class="text-secondary fw-semibold">Today Check-Ins</small>
-                                <h3 class="fw-bold text-info mb-0"><?php echo $todayCheckIns; ?></h3>
+                                <h6 class="text-muted small fw-semibold mb-0">Occupied</h6>
+                                <h3 class="fw-bold text-danger mb-0"><?php echo $roomCounts['Occupied']; ?></h3>
                             </div>
-                            <div class="p-3 bg-light text-info rounded-circle"><i class="fas fa-key fs-4"></i></div>
                         </div>
                     </div>
                 </div>
-                <div class="col-xl-3 col-md-4 col-6">
+                <div class="col-md-3 col-6">
                     <div class="card border-0 shadow-sm rounded-4 p-3 bg-white stat-card">
-                        <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="bg-warning text-dark rounded-circle p-3 fs-4"><i class="fas fa-broom"></i></div>
                             <div>
-                                <small class="text-secondary fw-semibold">Today Check-Outs</small>
-                                <h3 class="fw-bold text-primary mb-0"><?php echo $todayCheckOuts; ?></h3>
+                                <h6 class="text-muted small fw-semibold mb-0">Cleaning</h6>
+                                <h3 class="fw-bold text-warning mb-0"><?php echo $roomCounts['Cleaning']; ?></h3>
                             </div>
-                            <div class="p-3 bg-light text-primary rounded-circle"><i class="fas fa-sign-out-alt fs-4"></i></div>
                         </div>
                     </div>
                 </div>
-                <div class="col-xl-3 col-md-4 col-6">
-                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white stat-card">
-                        <div class="d-flex justify-content-between align-items-center">
+            </div>
+
+            <!-- Financial & Operational Stats Banner -->
+            <div class="row g-4 mb-4">
+                <div class="col-md-6">
+                    <div class="card border-0 shadow-sm rounded-4 p-4 bg-white h-100">
+                        <h6 class="fw-bold text-dark mb-3"><i class="fas fa-chart-line text-warning me-2"></i>Financial Summary</h6>
+                        <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
                             <div>
-                                <small class="text-secondary fw-semibold">Total Customers</small>
-                                <h3 class="fw-bold text-dark mb-0"><?php echo $custCount; ?></h3>
-                            </div>
-                            <div class="p-3 bg-light text-dark rounded-circle"><i class="fas fa-users fs-4"></i></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-xl-4 col-md-6 col-12">
-                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white stat-card border-start border-success border-4">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <small class="text-secondary fw-semibold">Monthly Revenue</small>
+                                <small class="text-muted d-block">This Month's Revenue</small>
                                 <h3 class="fw-bold text-success mb-0"><?php echo formatCurrency($monthlyRevenue); ?></h3>
                             </div>
-                            <div class="p-3 bg-light text-success rounded-circle"><i class="fas fa-wallet fs-4"></i></div>
+                            <span class="badge bg-success-subtle text-success border border-success px-3 py-2">Paid Invoices</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <small class="text-muted d-block">Pending Bookings Revenue</small>
+                                <h4 class="fw-bold text-warning mb-0"><?php echo formatCurrency($pendingPayments); ?></h4>
+                            </div>
+                            <a href="bookings.php" class="btn btn-sm btn-outline-dark fw-bold">Review Requests</a>
                         </div>
                     </div>
                 </div>
-                <div class="col-xl-4 col-md-6 col-12">
-                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white stat-card border-start border-warning border-4">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <small class="text-secondary fw-semibold">Pending Receivables</small>
-                                <h3 class="fw-bold text-warning mb-0"><?php echo formatCurrency($pendingPayments); ?></h3>
+
+                <div class="col-md-6">
+                    <div class="card border-0 shadow-sm rounded-4 p-4 bg-white h-100">
+                        <h6 class="fw-bold text-dark mb-3"><i class="fas fa-calendar-day text-warning me-2"></i>Today's Operations</h6>
+                        <div class="row text-center g-3">
+                            <div class="col-6">
+                                <div class="p-3 bg-light rounded-3 border">
+                                    <i class="fas fa-sign-in-alt text-primary fs-3 mb-1"></i>
+                                    <h4 class="fw-bold mb-0 text-dark"><?php echo $todayCheckIns; ?></h4>
+                                    <small class="text-secondary">Expected Check-Ins</small>
+                                </div>
                             </div>
-                            <div class="p-3 bg-light text-warning rounded-circle"><i class="fas fa-hourglass-half fs-4"></i></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-xl-4 col-md-12 col-12">
-                    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white stat-card">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <small class="text-secondary fw-semibold">Active Staff Members</small>
-                                <h3 class="fw-bold text-dark mb-0"><?php echo $staffCount; ?> Active</h3>
+                            <div class="col-6">
+                                <div class="p-3 bg-light rounded-3 border">
+                                    <i class="fas fa-sign-out-alt text-info fs-3 mb-1"></i>
+                                    <h4 class="fw-bold mb-0 text-dark"><?php echo $todayCheckOuts; ?></h4>
+                                    <small class="text-secondary">Expected Check-Outs</small>
+                                </div>
                             </div>
-                            <div class="p-3 bg-light text-dark rounded-circle"><i class="fas fa-user-shield fs-4"></i></div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- 4 Dynamic Chart visual Canvases -->
+            <!-- Dynamic Chart Visualizations -->
             <div class="row g-4 mb-4">
-                <div class="col-md-7">
+                <div class="col-lg-8">
                     <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
-                        <h6 class="fw-bold mb-3"><i class="fas fa-chart-line text-warning me-2"></i>Monthly Revenue Velocity (₹)</h6>
-                        <canvas id="monthlyRevenueChart" height="200"></canvas>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="fw-bold text-dark mb-0"><i class="fas fa-chart-bar text-warning me-2"></i>Monthly Revenue Trend</h6>
+                            <span class="badge bg-light text-dark border">FY 2026</span>
+                        </div>
+                        <div style="height: 280px;">
+                            <canvas id="adminRevenueChart"></canvas>
+                        </div>
                     </div>
                 </div>
-                <div class="col-md-5">
-                    <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
-                        <h6 class="fw-bold mb-3"><i class="fas fa-chart-pie text-warning me-2"></i>Live Occupancy Rate Breakdown</h6>
-                        <canvas id="occupancyDoughnutChart" height="200"></canvas>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
-                        <h6 class="fw-bold mb-3"><i class="fas fa-chart-bar text-warning me-2"></i>Monthly Reservations Count</h6>
-                        <canvas id="bookingsBarChart" height="200"></canvas>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
-                        <h6 class="fw-bold mb-3"><i class="fas fa-compass text-warning me-2"></i>Room Category Popularity Share</h6>
-                        <canvas id="roomTypePolarChart" height="200"></canvas>
+                <div class="col-lg-4">
+                    <div class="card border-0 shadow-sm rounded-4 p-4 bg-white h-100">
+                        <h6 class="fw-bold text-dark mb-3"><i class="fas fa-chart-pie text-warning me-2"></i>Room Status Breakdown</h6>
+                        <div style="height: 230px;" class="d-flex align-items-center justify-content-center">
+                            <canvas id="adminOccupancyChart"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Recent System Audit Logs -->
+            <!-- System Audit Activity Logs -->
             <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-                <div class="card-header bg-white p-3 d-flex justify-content-between align-items-center border-bottom">
-                    <h6 class="fw-bold mb-0"><i class="fas fa-history text-warning me-2"></i>Recent System Activity Audit Logs</h6>
-                    <a href="activity-logs.php" class="small text-warning fw-semibold text-decoration-none">View All Logs</a>
+                <div class="card-header bg-white p-3 d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold mb-0 text-dark"><i class="fas fa-history text-warning me-2"></i>Recent System Activity Logs</h6>
+                    <a href="activity-logs.php" class="btn btn-sm btn-link text-warning text-decoration-none fw-bold">View All Logs</a>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light small">
                             <tr>
-                                <th>Timestamp</th>
-                                <th>User</th>
                                 <th>Action</th>
-                                <th>Description</th>
+                                <th>User</th>
+                                <th>Details</th>
                                 <th>IP Address</th>
+                                <th>Timestamp</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($activityLogs as $log): ?>
                                 <tr>
-                                    <td class="small text-muted"><?php echo formatDate($log['created_at'], 'd M Y H:i'); ?></td>
-                                    <td class="fw-semibold"><?php echo sanitize($log['user_name'] ?: 'System'); ?></td>
                                     <td><span class="badge bg-dark text-warning"><?php echo sanitize($log['action']); ?></span></td>
-                                    <td class="small"><?php echo sanitize($log['description']); ?></td>
-                                    <td><code><?php echo sanitize($log['ip_address']); ?></code></td>
+                                    <td class="fw-semibold text-dark"><?php echo sanitize($log['user_name'] ?: 'System'); ?></td>
+                                    <td class="small text-secondary"><?php echo sanitize($log['description']); ?></td>
+                                    <td class="small font-monospace"><?php echo sanitize($log['ip_address']); ?></td>
+                                    <td class="small text-muted"><?php echo formatDate($log['created_at'], 'd M, H:i'); ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
                     </table>
                 </div>
             </div>
-
         </div>
     </div>
 </div>
-
-<script src="<?php echo BASE_URL; ?>/assets/js/chart-config.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    renderAdminCharts(
-        { labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'], values: [35000, 48000, 62000, 79000, 92000, 110000, <?php echo (float)$monthlyRevenue; ?>] },
-        { labels: ['Available', 'Occupied', 'Reserved', 'Cleaning', 'Maintenance'], values: [<?php echo $rCounts['Available']; ?>, <?php echo $rCounts['Occupied']; ?>, <?php echo $rCounts['Reserved']; ?>, <?php echo $rCounts['Cleaning']; ?>, <?php echo $rCounts['Maintenance']; ?>] },
-        { labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'], values: [10, 15, 22, 28, 34, 40, 48] },
-        { labels: ['Executive Suite', 'Presidential Villa', 'Deluxe Double', 'Standard Classic'], values: [40, 20, 25, 15] }
-    );
-});
-</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
