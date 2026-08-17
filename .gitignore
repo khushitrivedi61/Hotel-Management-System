@@ -1,0 +1,16 @@
+# Operating System Junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Temporary logs & session files
+*.log
+error_log
+error_log.txt
+tmp/
